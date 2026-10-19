@@ -9,6 +9,7 @@ This repository describes a demo application. It is **not** connected to a real 
 - [Purpose and scope](#purpose-and-scope)
 - [Implemented workflows](#implemented-workflows)
 - [Architecture](#architecture)
+- [Graph Schema].(#graph-schema).
 - [Read and write boundaries](#read-and-write-boundaries)
 - [Technology stack](#technology-stack)
 - [Graph and data assumptions](#graph-and-data-assumptions)
@@ -102,6 +103,54 @@ The Investigate agent uses the OpenAI Python SDK against Google's OpenAI-compati
 
 The MCP read session is launched by the application as a subprocess over stdio. LotLine sets `FALKORDB_MCP_ALLOW_WRITES=0` and independently allowlists read tools. Explicit application writes use a separate Python repository and are not exposed as general-purpose write tools to the agent.
 
+## Graph Schema
+
+The following diagram illustrates the LotLine graph schema.
+
+```mermaid
+flowchart LR
+    SUP[Supplier]
+    PART[Part master]
+    RAW[Raw material Lot]
+    WO1[WorkOrder - subassembly]
+    WIP[WIP Lot]
+    WO2[WorkOrder - final assembly]
+    FG[Finished-goods Lot]
+    PORTION[Child Lot portion]
+    MACHINE[Machine]
+    QE[QualityEvent]
+    SHIP[Shipment]
+    ORDER[CustomerOrder]
+
+    SUP -->|SUPPLIED| RAW
+    SUP -->|APPROVED_FOR / FORMERLY_APPROVED_FOR| PART
+    RAW -->|OF_PART| PART
+    PART -->|REQUIRES / BOM| PART
+    RAW -->|INPUT_TO + qty_used| WO1
+    WO1 -->|FOR_PART| PART
+    WO1 -->|RUNS_ON| MACHINE
+    WO1 -->|PRODUCES + qty_produced| WIP
+    WIP -->|SPLIT_INTO + quantity| PORTION
+    PORTION -->|INPUT_TO| WO2
+    WO2 -->|RUNS_ON| MACHINE
+    WO2 -->|PRODUCES| FG
+    QE -->|AFFECTS| RAW
+    QE -->|AFFECTS| WO1
+    FG -->|PACKED_IN / ALLOCATED_TO| SHIP
+    SHIP -->|FULFILLS| ORDER
+
+    PERSON[Person]
+    TEAM[Team]
+    DOC[SourceRecord]
+    PERSON -->|MEMBER_OF| TEAM
+    PERSON -->|EXPERT_IN| PART
+    PERSON -->|AUTHORED| DOC
+    DOC -->|OWNED_BY| TEAM
+    DOC -->|APPLIES_TO| PART
+    DOC -->|APPLIES_TO| QE
+    DOC -->|SUPERSEDES| DOC
+
+```
 ## Read and write boundaries
 
 ### Read path
